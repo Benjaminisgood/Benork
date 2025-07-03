@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Submit Expense - Team Accounting{% endblock %}
+{% block content %}
+<h3 class="mb-3">Submit Expense Request</h3>
+<form action="{{ url_for('main.submit_request') }}" method="post" class="mb-3">
+  <div class="mb-3">
+    <label for="amount" class="form-label">Amount</label>
+    <input name="amount" type="number" step="any" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label for="purpose" class="form-label">Purpose</label>
+    <input name="purpose" type="text" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label for="date" class="form-label">Date</label>
+    <input name="date" type="date" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label for="tag" class="form-label">Category</label>
+    <select name="tag" class="form-select" required>
+      <option value="">-- Select Category --</option>
+      {% for tag in tags %}
+        <option value="{{ tag.id }}">{{ tag.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+{% endblock %}

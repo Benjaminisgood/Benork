@@ -1,0 +1,12 @@
+# .gitignore 文件内容建议如下：
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+myenv/
+instance/
+*.sqlite3
+*.db
+*.log
+.DS_Store

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Login - Team Accounting{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-4">
+    <h3 class="mb-3">Login</h3>
+    <form action="{{ url_for('auth.login') }}" method="post">
+      <div class="mb-3">
+        <label for="username" class="form-label">Username</label>
+        <input name="username" type="text" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Password</label>
+        <input name="password" type="password" class="form-control" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Login</button>
+      <p class="mt-2">No account? <a href="{{ url_for('auth.register') }}">Register here</a>.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}

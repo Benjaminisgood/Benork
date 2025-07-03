@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Statistics - Team Accounting{% endblock %}
+{% block content %}
+<h3 class="mb-3">Financial Statistics</h3>
+<p>Total Budget: {{ total_budget }}, Total Spent: {{ total_spent }}, Remaining: {{ total_budget - total_spent }}</p>
+{% if chart_url %}
+<div class="mb-3">
+    <img src="{{ chart_url }}" alt="Spending Chart" class="img-fluid">
+</div>
+{% else %}
+<p>No data available for chart.</p>
+{% endif %}
+<a href="{{ url_for('admin.export_csv') }}" class="btn btn-outline-primary me-2">Download CSV</a>
+<a href="{{ url_for('admin.export_excel') }}" class="btn btn-outline-primary">Download Excel</a>
+{% endblock %}
