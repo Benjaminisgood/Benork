@@ -33,715 +33,6 @@ team_accounting/               # 项目根目录
 └── static/                    # 静态文件目录（保存图表等）
     └── ...                    # 例如生成的统计图表 stats.png
 
-主要代码文件
-
-下面按文件列出项目的完整代码：
-
-app.py (应用入口)
-
-from flask import Flask
-from config import Config
-from models import db, User
-from flask_login import LoginManager
-from auth import auth_bp
-from main import main_bp
-from admin import admin_bp
-
-app = Flask(__name__)
-app.config.from_object(Config)
-
-# 初始化数据库和登录管理
-db.init_app(app)
-login_manager = LoginManager(app)
-login_manager.login_view = 'auth.login'
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-# 创建数据库表（如尚未创建）
-with app.app_context():
-    db.create_all()
-
-# 注册各功能模块的 Blueprint
-app.register_blueprint(auth_bp)
-app.register_blueprint(main_bp)
-app.register_blueprint(admin_bp)
-
-if __name__ == '__main__':
-    app.run(debug=True)
-
-config.py (配置)
-
-import os
-
-class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your_secret_key_here'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///team_accounting.db'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-models.py (数据模型定义)
-
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
-from datetime import date
-
-# 初始化数据库（在 app.py 中完成与 Flask app 的绑定）
-db = SQLAlchemy()
-
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-    # 关联到用户提交的所有报销申请
-    expenses = db.relationship('Expense', backref='user', lazy=True)
-
-class Tag(db.Model):
-    __tablename__ = 'tags'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    budget = db.Column(db.Float, nullable=False)
-    # 关联到该分类下的所有报销申请
-    expenses = db.relationship('Expense', backref='tag', lazy=True)
-
-class Expense(db.Model):
-    __tablename__ = 'expenses'
-    id = db.Column(db.Integer, primary_key=True)
-    amount = db.Column(db.Float, nullable=False)
-    purpose = db.Column(db.String(200), nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    status = db.Column(db.String(20), nullable=False, default='pending')  # 'pending', 'approved', 'rejected'
-    # 外键关联
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    tag_id = db.Column(db.Integer, db.ForeignKey('tags.id'), nullable=False)
-
-auth/init.py (认证模块 Blueprint 定义)
-
-from flask import Blueprint
-
-auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
-
-from . import routes
-
-auth/routes.py (注册、登录、登出功能路由)
-
-from flask import render_template, redirect, url_for, request, flash
-from flask_login import current_user, login_user, logout_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from . import auth_bp
-from models import db, User
-
-@auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
-    # 如果用户已登录，直接重定向
-    if current_user.is_authenticated:
-        if current_user.is_admin:
-            return redirect(url_for('admin.pending_requests'))
-        else:
-            return redirect(url_for('main.submit_request'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if not username or not password:
-            flash('Username and password are required.', 'warning')
-            return render_template('auth/register.html')
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            flash('Username already taken, please choose another.', 'danger')
-            return render_template('auth/register.html')
-        # 创建新用户
-        new_user = User(username=username, password_hash=generate_password_hash(password))
-        # 如果是第一个用户，赋予管理员权限
-        if User.query.first() is None:
-            new_user.is_admin = True
-        db.session.add(new_user)
-        db.session.commit()
-        # 自动登录新注册用户
-        login_user(new_user)
-        flash('Registration successful. Welcome!', 'success')
-        # 根据角色跳转：管理员跳转管理员页面，普通用户跳转提交页面
-        if new_user.is_admin:
-            return redirect(url_for('admin.pending_requests'))
-        else:
-            return redirect(url_for('main.submit_request'))
-    # GET 请求渲染注册页面
-    return render_template('auth/register.html')
-
-@auth_bp.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated:
-        # 已登录则跳转相应页面
-        if current_user.is_admin:
-            return redirect(url_for('admin.pending_requests'))
-        else:
-            return redirect(url_for('main.submit_request'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user)
-            flash('Logged in successfully.', 'success')
-            # 如果是被强制跳转登录的，处理 next 参数
-            next_page = request.args.get('next')
-            if next_page:
-                return redirect(next_page)
-            # 否则根据角色跳转
-            if user.is_admin:
-                return redirect(url_for('admin.pending_requests'))
-            else:
-                return redirect(url_for('main.submit_request'))
-        else:
-            flash('Invalid username or password.', 'danger')
-    return render_template('auth/login.html')
-
-@auth_bp.route('/logout')
-def logout():
-    if current_user.is_authenticated:
-        logout_user()
-    flash('You have been logged out.', 'info')
-    return redirect(url_for('auth.login'))
-
-main/init.py (普通用户功能 Blueprint 定义)
-
-from flask import Blueprint
-
-main_bp = Blueprint('main', __name__)
-
-from . import routes
-
-main/routes.py (提交报销、查看自己申请路由)
-
-from flask import render_template, redirect, url_for, request, flash
-from flask_login import current_user, login_required
-from datetime import datetime
-from . import main_bp
-from models import db, Expense, Tag
-
-@main_bp.route('/')
-def index():
-    # 未登录则跳转登录页
-    if not current_user.is_authenticated:
-        return redirect(url_for('auth.login'))
-    # 已登录：管理员跳转审核页面，普通用户跳转提交页面
-    if current_user.is_admin:
-        return redirect(url_for('admin.pending_requests'))
-    else:
-        return redirect(url_for('main.submit_request'))
-
-@main_bp.route('/submit', methods=['GET', 'POST'])
-@login_required
-def submit_request():
-    # 报销申请提交页面（需登录后访问）
-    tags = Tag.query.all()  # 获取所有分类标签供选择
-    if request.method == 'POST':
-        amount_str = request.form.get('amount')
-        purpose = request.form.get('purpose')
-        date_str = request.form.get('date')
-        tag_id = request.form.get('tag')
-        # 简单校验
-        if not amount_str or not purpose or not date_str or not tag_id:
-            flash('All fields are required.', 'warning')
-            return render_template('main/submit.html', tags=tags)
-        try:
-            amount = float(amount_str)
-        except ValueError:
-            flash('Amount must be a number.', 'danger')
-            return render_template('main/submit.html', tags=tags)
-        # 解析日期
-        try:
-            expense_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        except Exception:
-            flash('Invalid date format.', 'danger')
-            return render_template('main/submit.html', tags=tags)
-        tag = Tag.query.get(int(tag_id))
-        if not tag:
-            flash('Selected category not found.', 'danger')
-            return render_template('main/submit.html', tags=tags)
-        # 创建新的报销申请（状态默认为 pending）
-        new_expense = Expense(amount=amount, purpose=purpose, date=expense_date,
-                               user_id=current_user.id, tag_id=tag.id)
-        db.session.add(new_expense)
-        db.session.commit()
-        flash('Expense request submitted successfully.', 'success')
-        return redirect(url_for('main.my_requests'))
-    # GET 请求渲染表单页面
-    return render_template('main/submit.html', tags=tags)
-
-@main_bp.route('/my_requests')
-@login_required
-def my_requests():
-    # 查询当前用户的所有报销申请，按日期倒序
-    expenses = Expense.query.filter_by(user_id=current_user.id).order_by(Expense.date.desc()).all()
-    return render_template('main/my_requests.html', expenses=expenses)
-
-admin/init.py (管理员功能 Blueprint 定义)
-
-from flask import Blueprint
-
-admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
-
-from . import routes
-
-admin/routes.py (审核、分类预算管理、统计导出路由)
-
-from flask import render_template, redirect, url_for, request, flash, send_file
-from flask_login import current_user, login_required
-from . import admin_bp
-from models import db, User, Expense, Tag
-import pandas as pd
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import io, os, time
-
-@admin_bp.before_request
-def admin_required():
-    # 管理员权限校验：未登录或非管理员则禁止访问
-    if not current_user.is_authenticated:
-        return redirect(url_for('auth.login'))
-    if not current_user.is_admin:
-        flash('Admin access is required to view this page.', 'danger')
-        return redirect(url_for('main.index'))
-
-@admin_bp.route('/')
-@login_required
-def admin_index():
-    # 管理员首页默认跳转到待审核列表
-    return redirect(url_for('admin.pending_requests'))
-
-@admin_bp.route('/pending')
-@login_required
-def pending_requests():
-    # 获取所有待审核的报销申请
-    pending_list = Expense.query.filter_by(status='pending').order_by(Expense.date.desc()).all()
-    return render_template('admin/pending.html', expenses=pending_list)
-
-@admin_bp.route('/approve/<int:expense_id>', methods=['POST'])
-@login_required
-def approve_request(expense_id):
-    expense = Expense.query.get_or_404(expense_id)
-    if expense.status != 'pending':
-        flash('Expense request is not pending.', 'warning')
-        return redirect(url_for('admin.pending_requests'))
-    tag = expense.tag  # 通过 backref 获取关联的 Tag 对象
-    # 计算该分类已批准的总开销
-    current_spent = sum(e.amount for e in tag.expenses if e.status == 'approved')
-    if current_spent + expense.amount > tag.budget:
-        flash(f'Cannot approve: approving this would exceed budget for category "{tag.name}".', 'danger')
-        return redirect(url_for('admin.pending_requests'))
-    # 更新状态为已批准
-    expense.status = 'approved'
-    db.session.commit()
-    flash('Expense request approved and added to the ledger.', 'success')
-    return redirect(url_for('admin.pending_requests'))
-
-@admin_bp.route('/reject/<int:expense_id>', methods=['POST'])
-@login_required
-def reject_request(expense_id):
-    expense = Expense.query.get_or_404(expense_id)
-    if expense.status != 'pending':
-        flash('Expense request is not pending.', 'warning')
-        return redirect(url_for('admin.pending_requests'))
-    # 更新状态为已拒绝
-    expense.status = 'rejected'
-    db.session.commit()
-    flash('Expense request has been rejected.', 'info')
-    return redirect(url_for('admin.pending_requests'))
-
-@admin_bp.route('/tags')
-@login_required
-def manage_tags():
-    tags = Tag.query.all()
-    total_budget = 0
-    total_spent = 0
-    # 计算每个分类已用金额
-    for tag in tags:
-        spent = sum(e.amount for e in tag.expenses if e.status == 'approved')
-        tag.current_usage = spent
-        total_budget += tag.budget
-        total_spent += spent
-    total_remaining = total_budget - total_spent
-    return render_template('admin/tags.html', tags=tags, total_budget=total_budget,
-                           total_spent=total_spent, total_remaining=total_remaining)
-
-@admin_bp.route('/tags/add', methods=['POST'])
-@login_required
-def add_tag():
-    name = request.form.get('name')
-    budget_str = request.form.get('budget')
-    if not name or not budget_str:
-        flash('Name and budget are required for new category.', 'warning')
-        return redirect(url_for('admin.manage_tags'))
-    try:
-        budget_val = float(budget_str)
-    except ValueError:
-        flash('Budget must be a number.', 'danger')
-        return redirect(url_for('admin.manage_tags'))
-    # 检查名称是否已存在
-    existing = Tag.query.filter_by(name=name).first()
-    if existing:
-        flash('Category name already exists.', 'danger')
-        return redirect(url_for('admin.manage_tags'))
-    new_tag = Tag(name=name, budget=budget_val)
-    db.session.add(new_tag)
-    db.session.commit()
-    flash(f'Category "{name}" added.', 'success')
-    return redirect(url_for('admin.manage_tags'))
-
-@admin_bp.route('/tags/<int:tag_id>/update', methods=['POST'])
-@login_required
-def update_tag(tag_id):
-    tag = Tag.query.get_or_404(tag_id)
-    budget_str = request.form.get('budget')
-    if not budget_str:
-        flash('Budget value is required.', 'warning')
-        return redirect(url_for('admin.manage_tags'))
-    try:
-        new_budget = float(budget_str)
-    except ValueError:
-        flash('Budget must be a number.', 'danger')
-        return redirect(url_for('admin.manage_tags'))
-    tag.budget = new_budget
-    db.session.commit()
-    flash(f'Budget for "{tag.name}" updated to {new_budget}.', 'success')
-    return redirect(url_for('admin.manage_tags'))
-
-@admin_bp.route('/stats')
-@login_required
-def stats():
-    tags = Tag.query.all()
-    chart_url = None
-    if tags:
-        data = []
-        for tag in tags:
-            spent = sum(e.amount for e in tag.expenses if e.status == 'approved')
-            data.append({'Tag': tag.name, 'Spent': spent, 'Budget': tag.budget})
-        df = pd.DataFrame(data).set_index('Tag')
-        if not df.empty:
-            # 绘制每个分类的支出 vs 预算柱状图
-            fig, ax = plt.subplots(figsize=(6,4))
-            df.plot(kind='bar', ax=ax)
-            plt.title('Spending by Category')
-            plt.ylabel('Amount')
-            plt.tight_layout()
-            # 保存图表到静态文件
-            chart_path = os.path.join(os.getcwd(), 'static', 'stats.png')
-            fig.savefig(chart_path)
-            plt.close(fig)
-            # 为避免浏览器缓存，加时间戳参数
-            chart_url = url_for('static', filename='stats.png') + '?v=' + str(int(time.time()))
-    total_spent = sum(e.amount for e in Expense.query.filter_by(status='approved').all())
-    total_budget = sum(tag.budget for tag in tags)
-    return render_template('admin/stats.html', chart_url=chart_url, total_spent=total_spent, total_budget=total_budget)
-
-@admin_bp.route('/export/csv')
-@login_required
-def export_csv():
-    # 导出所有已批准的报销记录为 CSV
-    expenses = Expense.query.filter_by(status='approved').all()
-    data = []
-    for e in expenses:
-        data.append({
-            'ID': e.id,
-            'User': e.user.username,
-            'Category': e.tag.name,
-            'Amount': e.amount,
-            'Purpose': e.purpose,
-            'Date': e.date.strftime('%Y-%m-%d')
-        })
-    df = pd.DataFrame(data)
-    output = io.BytesIO()
-    df.to_csv(output, index=False)
-    output.seek(0)
-    return send_file(output, as_attachment=True, download_name='expenses.csv', mimetype='text/csv')
-
-@admin_bp.route('/export/excel')
-@login_required
-def export_excel():
-    # 导出所有已批准的报销记录为 Excel
-    expenses = Expense.query.filter_by(status='approved').all()
-    data = []
-    for e in expenses:
-        data.append({
-            'ID': e.id,
-            'User': e.user.username,
-            'Category': e.tag.name,
-            'Amount': e.amount,
-            'Purpose': e.purpose,
-            'Date': e.date.strftime('%Y-%m-%d')
-        })
-    df = pd.DataFrame(data)
-    output = io.BytesIO()
-    df.to_excel(output, index=False)
-    output.seek(0)
-    return send_file(output, as_attachment=True, download_name='expenses.xlsx',
-                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-前端模板文件
-
-templates/base.html (基础页面模板)
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{% block title %}Team Accounting{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="#">TeamAccounting</a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav me-auto">
-                {% if current_user.is_authenticated %}
-                    {% if current_user.is_admin %}
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.pending_requests') }}">Pending Requests</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.manage_tags') }}">Manage Tags</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.stats') }}">Statistics</a></li>
-                    {% else %}
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.submit_request') }}">Submit Expense</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('main.my_requests') }}">My Requests</a></li>
-                    {% endif %}
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.username }})</a></li>
-                {% else %}
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.login') }}">Login</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('auth.register') }}">Register</a></li>
-                {% endif %}
-            </ul>
-        </div>
-    </div>
-</nav>
-<div class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-</div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-
-templates/auth/login.html (登录页面)
-
-{% extends 'base.html' %}
-{% block title %}Login - Team Accounting{% endblock %}
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-4">
-    <h3 class="mb-3">Login</h3>
-    <form action="{{ url_for('auth.login') }}" method="post">
-      <div class="mb-3">
-        <label for="username" class="form-label">Username</label>
-        <input name="username" type="text" class="form-control" required>
-      </div>
-      <div class="mb-3">
-        <label for="password" class="form-label">Password</label>
-        <input name="password" type="password" class="form-control" required>
-      </div>
-      <button type="submit" class="btn btn-primary">Login</button>
-      <p class="mt-2">No account? <a href="{{ url_for('auth.register') }}">Register here</a>.</p>
-    </form>
-  </div>
-</div>
-{% endblock %}
-
-templates/auth/register.html (注册页面)
-
-{% extends 'base.html' %}
-{% block title %}Register - Team Accounting{% endblock %}
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-4">
-    <h3 class="mb-3">Register</h3>
-    <form action="{{ url_for('auth.register') }}" method="post">
-      <div class="mb-3">
-        <label for="username" class="form-label">Username</label>
-        <input name="username" type="text" class="form-control" required>
-      </div>
-      <div class="mb-3">
-        <label for="password" class="form-label">Password</label>
-        <input name="password" type="password" class="form-control" required>
-      </div>
-      <button type="submit" class="btn btn-success">Register</button>
-      <p class="mt-2">Have an account? <a href="{{ url_for('auth.login') }}">Login here</a>.</p>
-    </form>
-  </div>
-</div>
-{% endblock %}
-
-templates/main/submit.html (报销申请提交页面)
-
-{% extends 'base.html' %}
-{% block title %}Submit Expense - Team Accounting{% endblock %}
-{% block content %}
-<h3 class="mb-3">Submit Expense Request</h3>
-<form action="{{ url_for('main.submit_request') }}" method="post" class="mb-3">
-  <div class="mb-3">
-    <label for="amount" class="form-label">Amount</label>
-    <input name="amount" type="number" step="any" class="form-control" required>
-  </div>
-  <div class="mb-3">
-    <label for="purpose" class="form-label">Purpose</label>
-    <input name="purpose" type="text" class="form-control" required>
-  </div>
-  <div class="mb-3">
-    <label for="date" class="form-label">Date</label>
-    <input name="date" type="date" class="form-control" required>
-  </div>
-  <div class="mb-3">
-    <label for="tag" class="form-label">Category</label>
-    <select name="tag" class="form-select" required>
-      <option value="">-- Select Category --</option>
-      {% for tag in tags %}
-        <option value="{{ tag.id }}">{{ tag.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button type="submit" class="btn btn-primary">Submit</button>
-</form>
-{% endblock %}
-
-templates/main/my_requests.html (“我的申请”页面)
-
-{% extends 'base.html' %}
-{% block title %}My Requests - Team Accounting{% endblock %}
-{% block content %}
-<h3 class="mb-3">My Expense Requests</h3>
-{% if expenses %}
-<table class="table table-bordered">
-  <thead>
-    <tr><th>Date</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    {% for exp in expenses %}
-      <tr>
-        <td>{{ exp.date.strftime('%Y-%m-%d') }}</td>
-        <td>{{ exp.tag.name }}</td>
-        <td>{{ exp.purpose }}</td>
-        <td>{{ "%.2f"|format(exp.amount) }}</td>
-        <td>
-          {% if exp.status == 'pending' %}
-            <span class="badge bg-secondary">Pending</span>
-          {% elif exp.status == 'approved' %}
-            <span class="badge bg-success">Approved</span>
-          {% elif exp.status == 'rejected' %}
-            <span class="badge bg-danger">Rejected</span>
-          {% endif %}
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>You have not submitted any expenses yet.</p>
-{% endif %}
-{% endblock %}
-
-templates/admin/pending.html (待审核申请列表页面)
-
-{% extends 'base.html' %}
-{% block title %}Pending Requests - Team Accounting{% endblock %}
-{% block content %}
-<h3 class="mb-3">Pending Expense Requests</h3>
-{% if expenses %}
-<table class="table table-bordered">
-  <thead>
-    <tr><th>User</th><th>Date</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Actions</th></tr>
-  </thead>
-  <tbody>
-    {% for exp in expenses %}
-      <tr>
-        <td>{{ exp.user.username }}</td>
-        <td>{{ exp.date.strftime('%Y-%m-%d') }}</td>
-        <td>{{ exp.tag.name }}</td>
-        <td>{{ exp.purpose }}</td>
-        <td>{{ "%.2f"|format(exp.amount) }}</td>
-        <td>
-          <form action="{{ url_for('admin.approve_request', expense_id=exp.id) }}" method="post" class="d-inline">
-            <button type="submit" class="btn btn-sm btn-success">Approve</button>
-          </form>
-          <form action="{{ url_for('admin.reject_request', expense_id=exp.id) }}" method="post" class="d-inline">
-            <button type="submit" class="btn btn-sm btn-danger">Reject</button>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No pending requests.</p>
-{% endif %}
-{% endblock %}
-
-templates/admin/tags.html (分类预算管理页面)
-
-{% extends 'base.html' %}
-{% block title %}Manage Categories - Team Accounting{% endblock %}
-{% block content %}
-<h3 class="mb-3">Manage Budget Categories</h3>
-<p>Total Budget: {{ total_budget }}, Total Spent: {{ total_spent }}, Remaining: {{ total_remaining }}</p>
-<table class="table table-bordered mb-3">
-  <thead>
-    <tr><th>Category</th><th>Budget</th><th>Spent</th><th>Remaining</th></tr>
-  </thead>
-  <tbody>
-    {% for tag in tags %}
-      <tr>
-        <td>{{ tag.name }}</td>
-        <td>
-          <form action="{{ url_for('admin.update_tag', tag_id=tag.id) }}" method="post" class="d-inline">
-            <input type="number" name="budget" value="{{ tag.budget }}" step="any" class="form-control d-inline-block" style="width: 8em;">
-            <button type="submit" class="btn btn-sm btn-primary">Update</button>
-          </form>
-        </td>
-        <td>{{ "%.2f"|format(tag.current_usage) }}</td>
-        <td>{{ "%.2f"|format(tag.budget - tag.current_usage) }}</td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
-<h5>Add New Category</h5>
-<form action="{{ url_for('admin.add_tag') }}" method="post" class="row g-2 align-items-center">
-  <div class="col-auto">
-    <input name="name" type="text" placeholder="Category name" class="form-control" required>
-  </div>
-  <div class="col-auto">
-    <input name="budget" type="number" step="any" placeholder="Budget" class="form-control" required>
-  </div>
-  <div class="col-auto">
-    <button type="submit" class="btn btn-success">Add Category</button>
-  </div>
-</form>
-{% endblock %}
-
-templates/admin/stats.html (财务统计页面)
-
-{% extends 'base.html' %}
-{% block title %}Statistics - Team Accounting{% endblock %}
-{% block content %}
-<h3 class="mb-3">Financial Statistics</h3>
-<p>Total Budget: {{ total_budget }}, Total Spent: {{ total_spent }}, Remaining: {{ total_budget - total_spent }}</p>
-{% if chart_url %}
-<div class="mb-3">
-    <img src="{{ chart_url }}" alt="Spending Chart" class="img-fluid">
-</div>
-{% else %}
-<p>No data available for chart.</p>
-{% endif %}
-<a href="{{ url_for('admin.export_csv') }}" class="btn btn-outline-primary me-2">Download CSV</a>
-<a href="{{ url_for('admin.export_excel') }}" class="btn btn-outline-primary">Download Excel</a>
-{% endblock %}
 
 依赖安装与运行说明
 
@@ -764,7 +55,7 @@ pip install -r requirements.txt
 
 3. 运行应用： 在项目根目录下运行：
 
-python app.py
+python3 app.py
 
 应用将启动在默认的 http://127.0.0.1:5000。
 
@@ -780,11 +71,8 @@ python app.py
 
 以上即为完整可运行项目的代码结构和功能说明。将上述文件组织好目录结构后，按照说明安装依赖并运行应用，即可启动团队记账网站。祝使用愉快！
 
-非常好！你已经建立并激活了虚拟环境，接下来要实现 Flask 允许外网访问，只需要修改启动方式即可。
 
-⸻
-
-✅ 修改 Flask 启动方式：绑定公网 IP
+如果你需要外网访问，需要修改 Flask 启动方式：绑定公网 IP
 
 默认 Flask 只监听 127.0.0.1，只能本机访问。你要让其他设备访问，需要绑定 0.0.0.0，示例如下：
 
@@ -795,9 +83,9 @@ flask run --host=0.0.0.0 --port=5000
 
 或者直接用 Python：
 
-python app.py
+python3 app.py
 
-并在你的 app.py 文件末尾添加这一行：
+这需要修改代码，在你的 app.py 文件末尾添加这一行：
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
@@ -846,41 +134,16 @@ ipconfig  # Windows
 
 ⸻
 
-将一个 Flask 项目上传到 GitHub 的完整流程大致分为以下几个阶段：
+如果你想要开发，将一个 Flask 项目上传到 GitHub 的完整流程大致分为以下几个步骤：
 
-⸻
-
-🧭 一、准备阶段
-
-✅ 项目目录结构（假设你已经完成了项目开发）：
-
-team_accounting/
-├── app.py
-├── requirements.txt
-├── templates/
-├── static/
-├── instance/
-├── .gitignore
-└── README.md
-
-
-⸻
-
-🚀 二、Git 和 GitHub 上传流程
 
 ✅ 第一步：进入项目根目录
 
 cd /path/to/your/project/team_accounting
 
-
-⸻
-
 ✅ 第二步：初始化 Git 仓库
 
 git init
-
-
-⸻
 
 ✅ 第三步：创建 .gitignore 文件（很重要）
 
@@ -901,31 +164,20 @@ instance/
 
 curl -o .gitignore https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore
 
-
-⸻
-
 ✅ 第四步：添加远程 GitHub 仓库（如果还没创建，请登录 github.com → 新建一个仓库）
 
 git remote add origin https://github.com/你的用户名/仓库名.git
 
-
-⸻
 
 ✅ 第五步：提交代码
 
 git add .
 git commit -m "Initial commit: Flask team accounting tool"
 
-
-⸻
-
 ✅ 第六步：推送到 GitHub（如果是新仓库，要加上 -u origin main）
 
 git branch -M main  # 保证分支是 main（GitHub 默认）
 git push -u origin main
-
-
-⸻
 
 📦 第七步：生成 requirements.txt
 
@@ -938,32 +190,16 @@ pip freeze > requirements.txt
 pip install -r requirements.txt
 
 
-⸻
-
-📄 第八步：写 README.md
-
-写清楚：
-	•	项目简介
-	•	如何运行
-	•	所需依赖
-	•	使用示例
-
-例子：
-
-# Team Accounting - Flask 项目
-
-这是一个用于团队记账管理的 Flask 应用，支持用户注册登录、开销报备、审核流程以及财务统计。
-
 ## 快速开始
 
 ```bash
 # 克隆项目
 git clone https://github.com/Benjaminisgood/Benony.git
-cd 仓库名
+cd /home/lqh
 
 # 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows 用 venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate                                  # Windows 用 venv\Scripts\activate
 
 # 安装依赖
 pip install -r requirements.txt
@@ -971,6 +207,13 @@ pip install -r requirements.txt
 # 运行项目
 python app.py
 
+
+nohup python app.py > flask.log 2>&1 &
+
+
+pip install gunicorn
+gunicorn -w 3 -b 0.0.0.0:5000 app:app --daemon
+pkill gunicorn
 ---
 
 ## 🔐 可选：添加 `.env` 支持（环境变量保护）
@@ -1004,4 +247,106 @@ load_dotenv()
 
 ⸻
 
-如你需要我直接帮你生成 .gitignore、README.md、甚至 .env.template，请告诉我你项目结构和主要依赖即可，我可以自动生成完整模板给你。是否需要我现在帮你生成？
+
+
+使用 systemd 来托管 Flask 项目是一个专业且稳健的部署方式，支持：
+	•	后台运行 ✅
+	•	自动重启 ✅
+	•	开机自启 ✅
+	•	日志集中管理 ✅
+
+具体步骤如下：
+
+✅ 步骤一：创建 systemd 服务文件
+
+使用以下命令新建服务配置文件：
+
+sudo nano /etc/systemd/system/benony.service
+
+🔧 然后复制粘贴以下内容：
+
+[Unit]
+Description=Flask Team Accounting Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/home/lqh
+ExecStart=/home/lqh/venv/bin/python app.py
+Restart=always
+Environment=FLASK_ENV=production
+Environment=FLASK_APP=app.py
+
+[Install]
+WantedBy=multi-user.target
+
+
+⸻
+
+✅ 步骤二：重新加载 systemd 并启动服务
+
+# 重新加载 systemd 配置
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+
+# 启动服务
+sudo systemctl start benony.service
+
+# 设置开机自启
+sudo systemctl enable benony.service
+
+
+⸻
+
+✅ 步骤三：查看运行状态与日志
+
+🔍 查看服务状态
+
+sudo systemctl status benony.service
+
+📄 查看日志输出
+
+journalctl -u benony.service -n 100 --no-pager
+
+也可以实时监听：
+
+journalctl -u benony.service -f
+
+
+⸻
+
+🧯 停止 / 重启服务
+
+sudo systemctl stop benony.service
+sudo systemctl restart benony.service
+
+
+⸻
+
+⚠️ 注意事项
+	1.	若你使用了 .env 文件进行配置（推荐），可用如下替代 ExecStart：
+
+ExecStart=/bin/bash -c 'source /home/lqh/Benony/venv/bin/activate && python app.py'
+
+
+	2.	若项目监听 0.0.0.0:5000，记得防火墙开放端口：
+
+sudo ufw allow 5000
+
+⸻
+
+🧩 Bonus：测试是否成功
+
+打开浏览器访问服务器 IP（公网或内网）：
+
+http://<你的服务器IP>:5000
+
+
+集中查看多个服务状态可以用通配符批量查：
+
+systemctl list-units --type=service | grep lqh
+
+或：
+
+systemctl status neibr.service
+journalctl -u neibr.service -n 50
