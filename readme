@@ -779,3 +779,229 @@ python app.py
 	•	点击页面上的“Download CSV”或“Download Excel”按钮，可导出所有已批准报销记录的明细表（分别为 CSV 或 Excel 文件）。
 
 以上即为完整可运行项目的代码结构和功能说明。将上述文件组织好目录结构后，按照说明安装依赖并运行应用，即可启动团队记账网站。祝使用愉快！
+
+非常好！你已经建立并激活了虚拟环境，接下来要实现 Flask 允许外网访问，只需要修改启动方式即可。
+
+⸻
+
+✅ 修改 Flask 启动方式：绑定公网 IP
+
+默认 Flask 只监听 127.0.0.1，只能本机访问。你要让其他设备访问，需要绑定 0.0.0.0，示例如下：
+
+# 开发模式启动 + 外网可访问
+export FLASK_ENV=development
+export FLASK_APP=app.py
+flask run --host=0.0.0.0 --port=5000
+
+或者直接用 Python：
+
+python app.py
+
+并在你的 app.py 文件末尾添加这一行：
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
+⸻
+
+📡 补充说明：
+
+✅ 外网访问需要满足两个前提：
+	1.	你本地的 IP 是局域网中的局域地址（如 192.168.x.x）
+	•	在同一 WiFi 下，手机或别的设备可直接访问你的 IP。
+	2.	防火墙没有阻挡 5000 端口
+	•	macOS 默认允许 localhost 服务，通常没问题；
+	•	Windows 用户要检查防火墙；
+	•	Linux 用户可使用 ufw allow 5000/tcp 开放端口。
+
+⸻
+
+🌐 测试方法：
+
+✅ 本机测试：
+
+curl http://127.0.0.1:5000
+
+✅ 局域网其他设备访问：
+
+在浏览器访问你的电脑 IP，例如：
+
+http://192.168.1.10:5000
+
+可以用以下命令查看 IP：
+
+ifconfig  # mac 或 Linux
+ipconfig  # Windows
+
+
+⸻
+
+🔒 如果你要部署到公网服务器：
+
+比如放到阿里云、腾讯云，就还需要：
+	•	开放云服务器防火墙的端口；
+	•	使用 gunicorn + nginx 部署；
+	•	设置域名和 SSL 证书（可选）。
+
+⸻
+
+将一个 Flask 项目上传到 GitHub 的完整流程大致分为以下几个阶段：
+
+⸻
+
+🧭 一、准备阶段
+
+✅ 项目目录结构（假设你已经完成了项目开发）：
+
+team_accounting/
+├── app.py
+├── requirements.txt
+├── templates/
+├── static/
+├── instance/
+├── .gitignore
+└── README.md
+
+
+⸻
+
+🚀 二、Git 和 GitHub 上传流程
+
+✅ 第一步：进入项目根目录
+
+cd /path/to/your/project/team_accounting
+
+
+⸻
+
+✅ 第二步：初始化 Git 仓库
+
+git init
+
+
+⸻
+
+✅ 第三步：创建 .gitignore 文件（很重要）
+
+# .gitignore 文件内容建议如下：
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+myenv/
+instance/
+*.sqlite3
+*.db
+*.log
+.DS_Store
+
+你也可以使用 GitHub 提供的 Python 模板：
+
+curl -o .gitignore https://raw.githubusercontent.com/github/gitignore/main/Python.gitignore
+
+
+⸻
+
+✅ 第四步：添加远程 GitHub 仓库（如果还没创建，请登录 github.com → 新建一个仓库）
+
+git remote add origin https://github.com/你的用户名/仓库名.git
+
+
+⸻
+
+✅ 第五步：提交代码
+
+git add .
+git commit -m "Initial commit: Flask team accounting tool"
+
+
+⸻
+
+✅ 第六步：推送到 GitHub（如果是新仓库，要加上 -u origin main）
+
+git branch -M main  # 保证分支是 main（GitHub 默认）
+git push -u origin main
+
+
+⸻
+
+📦 第七步：生成 requirements.txt
+
+这一步是在你的虚拟环境中执行的：
+
+pip freeze > requirements.txt
+
+上传这个文件后别人可以用下面命令还原环境：
+
+pip install -r requirements.txt
+
+
+⸻
+
+📄 第八步：写 README.md
+
+写清楚：
+	•	项目简介
+	•	如何运行
+	•	所需依赖
+	•	使用示例
+
+例子：
+
+# Team Accounting - Flask 项目
+
+这是一个用于团队记账管理的 Flask 应用，支持用户注册登录、开销报备、审核流程以及财务统计。
+
+## 快速开始
+
+```bash
+# 克隆项目
+git clone https://github.com/Benjaminisgood/Benony.git
+cd 仓库名
+
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Windows 用 venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行项目
+python app.py
+
+---
+
+## 🔐 可选：添加 `.env` 支持（环境变量保护）
+
+在 Flask 项目中你可能会用到数据库 URI 或 SECRET_KEY，可以写在 `.env` 文件中（并在 `.gitignore` 中忽略）：
+
+```env
+SECRET_KEY=your-secret-key
+DATABASE_URL=sqlite:///team.db
+
+然后在项目中用 python-dotenv 加载：
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
+⸻
+
+✅ 完整流程复盘：
+
+步骤	命令
+初始化 Git	git init
+添加远程仓库	git remote add origin ...
+添加项目文件	git add .
+提交	git commit -m "init"
+推送到 GitHub	git push -u origin main
+导出依赖	pip freeze > requirements.txt
+创建 .gitignore	手动或 curl
+添加 README.md	自己写说明
+
+
+⸻
+
+如你需要我直接帮你生成 .gitignore、README.md、甚至 .env.template，请告诉我你项目结构和主要依赖即可，我可以自动生成完整模板给你。是否需要我现在帮你生成？
