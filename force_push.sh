@@ -3,21 +3,19 @@
 # ========== 基本设置 ==========
 DEFAULT_REMOTE="https://github.com/Benjaminisgood/Benork.git"
 BRANCH_NAME="main"
-COMMIT_MSG="💥 Force push to override remote repository"
+COMMIT_MSG="💥 Force push to override remote repository!!!"
 
 # ========== GUI 弹窗函数 ==========
 confirm_push() {
-  osascript <<EOF
-tell application "System Events"
+  osascript -e "tell application \"System Events\"
     activate
-    set response to display dialog "是否将本地代码覆盖远程仓库？\n\n仓库地址：$1" buttons {"取消", "继续"} default button "继续" with icon caution
-    if button returned of response is "继续" then
-        return "yes"
+    set response to display dialog \"是否将本地代码覆盖远程仓库？\\n\\n仓库地址：$1\" buttons {\"取消\", \"继续\"} default button \"继续\" with icon caution
+    if button returned of response is \"继续\" then
+        return \"yes\"
     else
-        return "no"
+        return \"no\"
     end if
-end tell
-EOF
+end tell"
 }
 
 # ========== 检查 .git ==========
@@ -39,6 +37,7 @@ else
 fi
 
 # ========== 弹出确认对话框 ==========
+echo "💬 等待用户确认操作..."
 response=$(confirm_push "$CURRENT_REMOTE")
 
 if [ "$response" == "yes" ]; then
