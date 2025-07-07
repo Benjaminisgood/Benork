@@ -3,7 +3,7 @@
 # ========== 基本设置 ==========
 DEFAULT_REMOTE="https://github.com/Benjaminisgood/Benork.git"
 BRANCH_NAME="main"
-COMMIT_MSG="💥 Force push to override remote repository!!!"
+COMMIT_MSG="💥 Force push to override remote repository"
 
 # ========== GUI 弹窗函数 ==========
 confirm_push() {
@@ -43,12 +43,17 @@ response=$(confirm_push "$CURRENT_REMOTE")
 if [ "$response" == "yes" ]; then
   echo "📦 开始强制覆盖推送..."
 
-  git checkout -B "$BRANCH_NAME"        # 强制创建并切换分支
+  git checkout -B "$BRANCH_NAME"
   git add .
   git commit -m "$COMMIT_MSG"
 
   git push -f origin "$BRANCH_NAME"
-  echo "✅ 推送完成！"
+  if [ $? -eq 0 ]; then
+    echo "✅ 推送完成！代码已成功覆盖远程仓库。"
+  else
+    echo "❌ 推送失败！可能是网络问题或远程地址错误。"
+    echo "💡 请确认网络已连接，并能访问 GitHub： https://github.com"
+  fi
 else
   echo "❌ 用户取消操作。"
 fi
