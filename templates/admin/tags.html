@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Manage Categories - Team Accounting{% endblock %}
+{% block content %}
+<h3 class="mb-3">Manage Budget Categories</h3>
+<p>Total Budget: {{ total_budget }}, Total Spent: {{ total_spent }}, Remaining: {{ total_remaining }}</p>
+<table class="table table-bordered mb-3">
+  <thead>
+    <tr><th>Category</th><th>Budget</th><th>Spent</th><th>Remaining</th></tr>
+  </thead>
+  <tbody>
+    {% for tag in tags %}
+      <tr>
+        <td>{{ tag.name }}</td>
+        <td>
+          <form action="{{ url_for('admin.update_tag', tag_id=tag.id) }}" method="post" class="d-inline">
+            <input type="number" name="budget" value="{{ tag.budget }}" step="any" class="form-control d-inline-block" style="width: 8em;">
+            <button type="submit" class="btn btn-sm btn-primary">Update</button>
+          </form>
+        </td>
+        <td>{{ "%.2f"|format(tag.current_usage) }}</td>
+        <td>{{ "%.2f"|format(tag.budget - tag.current_usage) }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<h5>Add New Category</h5>
+<form action="{{ url_for('admin.add_tag') }}" method="post" class="row g-2 align-items-center">
+  <div class="col-auto">
+    <input name="name" type="text" placeholder="Category name" class="form-control" required>
+  </div>
+  <div class="col-auto">
+    <input name="budget" type="number" step="any" placeholder="Budget" class="form-control" required>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-success">Add Category</button>
+  </div>
+</form>
+{% endblock %}

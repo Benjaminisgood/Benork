@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Pending Tutoring Records{% endblock %}
+{% block content %}
+<h3 class="mb-3">Pending Tutoring Records</h3>
+{% if records %}
+<table class="table table-bordered">
+  <thead>
+    <tr><th>Date</th><th>Teacher</th><th>Student</th><th>Content</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    {% for rec in records %}
+    <tr>
+      <td>{{ rec.date }}</td>
+      <td>{{ rec.teacher.username }}</td>
+      <td>{{ rec.student.username }}</td>
+      <td>{{ rec.content }}</td>
+      <td>
+        <form method="post" action="{{ url_for('tutoring.approve_record', record_id=rec.id) }}" class="d-inline">
+          <button class="btn btn-sm btn-success">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('tutoring.reject_record', record_id=rec.id) }}" class="d-inline">
+          <button class="btn btn-sm btn-danger">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No pending records.</p>
+{% endif %}
+{% endblock %}

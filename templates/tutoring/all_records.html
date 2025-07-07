@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}All Tutoring Records{% endblock %}
+{% block content %}
+<h3 class="mb-3">All Tutoring Records (Admin)</h3>
+<a href="{{ url_for('tutoring.export_records') }}" class="btn btn-sm btn-success mb-3">📥 Export Approved</a>
+<table class="table table-bordered">
+  <thead>
+    <tr><th>Date</th><th>Teacher</th><th>Student</th><th>Content</th><th>Status</th><th>Feedback</th></tr>
+  </thead>
+  <tbody>
+    {% for rec in records %}
+    <tr>
+      <td>{{ rec.date }}</td>
+      <td>{{ rec.teacher.username }}</td>
+      <td>{{ rec.student.username }}</td>
+      <td>{{ rec.content }}</td>
+      <td>{{ rec.status }}</td>
+      <td>
+        <strong>T:</strong> {{ rec.teacher_feedback or "—" }}<br>
+        <strong>S:</strong> {{ rec.student_feedback or "—" }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

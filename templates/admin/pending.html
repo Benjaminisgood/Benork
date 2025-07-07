@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Pending Requests - Team Accounting{% endblock %}
+{% block content %}
+<h3 class="mb-3">Pending Expense Requests</h3>
+{% if expenses %}
+<table class="table table-bordered">
+  <thead>
+    <tr><th>User</th><th>Date</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Actions</th></tr>
+  </thead>
+  <tbody>
+    {% for exp in expenses %}
+      <tr>
+        <td>{{ exp.user.username }}</td>
+        <td>{{ exp.date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ exp.tag.name }}</td>
+        <td>{{ exp.purpose }}</td>
+        <td>{{ "%.2f"|format(exp.amount) }}</td>
+        <td>
+          <form action="{{ url_for('admin.approve_request', expense_id=exp.id) }}" method="post" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+          </form>
+          <form action="{{ url_for('admin.reject_request', expense_id=exp.id) }}" method="post" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No pending requests.</p>
+{% endif %}
+{% endblock %}

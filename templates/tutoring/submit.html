@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Submit Tutoring Record{% endblock %}
+{% block content %}
+<h3 class="mb-3">Submit Tutoring Record</h3>
+<form method="post">
+  <div class="mb-3">
+    <label for="date" class="form-label">Date</label>
+    <input type="date" name="date" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label for="teacher_id" class="form-label">Teacher</label>
+    <select name="teacher_id" class="form-select" required>
+      <option value="">Select Teacher</option>
+      {% for u in users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="student_id" class="form-label">Student</label>
+    <select name="student_id" class="form-select" required>
+      <option value="">Select Student</option>
+      {% for u in users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="content" class="form-label">Content</label>
+    <textarea name="content" class="form-control" rows="4" required></textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+{% endblock %}

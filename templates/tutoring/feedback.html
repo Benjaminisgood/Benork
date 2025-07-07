@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Give Feedback{% endblock %}
+{% block content %}
+<h3 class="mb-3">Give Feedback for Session on {{ record.date }}</h3>
+
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Tutoring Content</label>
+    <div class="form-control" readonly>{{ record.content }}</div>
+  </div>
+
+  {% if current_user.id == record.teacher_id %}
+    <div class="mb-3">
+      <label for="teacher_feedback" class="form-label">Teacher Feedback</label>
+      <textarea name="teacher_feedback" class="form-control" rows="4" required>{{ record.teacher_feedback or '' }}</textarea>
+    </div>
+  {% elif current_user.id == record.student_id %}
+    <div class="mb-3">
+      <label for="student_feedback" class="form-label">Student Feedback</label>
+      <textarea name="student_feedback" class="form-control" rows="4" required>{{ record.student_feedback or '' }}</textarea>
+    </div>
+  {% else %}
+    <div class="alert alert-warning">You do not have permission to provide feedback on this session.</div>
+  {% endif %}
+
+  {% if current_user.id in [record.teacher_id, record.student_id] %}
+    <button type="submit" class="btn btn-primary">Submit Feedback</button>
+  {% endif %}
+</form>
+{% endblock %}

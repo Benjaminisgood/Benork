@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}My Requests - Team Accounting{% endblock %}
+{% block content %}
+<h3 class="mb-3">My Expense Requests</h3>
+{% if expenses %}
+<table class="table table-bordered">
+  <thead>
+    <tr><th>Date</th><th>Category</th><th>Purpose</th><th>Amount</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    {% for exp in expenses %}
+      <tr>
+        <td>{{ exp.date.strftime('%Y-%m-%d') }}</td>
+        <td>{{ exp.tag.name }}</td>
+        <td>{{ exp.purpose }}</td>
+        <td>{{ "%.2f"|format(exp.amount) }}</td>
+        <td>
+          {% if exp.status == 'pending' %}
+            <span class="badge bg-secondary">Pending</span>
+          {% elif exp.status == 'approved' %}
+            <span class="badge bg-success">Approved</span>
+          {% elif exp.status == 'rejected' %}
+            <span class="badge bg-danger">Rejected</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>You have not submitted any expenses yet.</p>
+{% endif %}
+{% endblock %}

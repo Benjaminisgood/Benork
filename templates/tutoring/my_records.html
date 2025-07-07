@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}My Tutoring Records{% endblock %}
+{% block content %}
+<h3 class="mb-3">My Tutoring Records</h3>
+{% if records %}
+<table class="table table-bordered">
+  <thead>
+    <tr><th>Date</th><th>Role</th><th>Partner</th><th>Content</th><th>Status</th><th>Feedback</th></tr>
+  </thead>
+  <tbody>
+    {% for rec in records %}
+    <tr>
+      <td>{{ rec.date }}</td>
+      <td>{% if current_user.id == rec.teacher_id %}Teacher{% else %}Student{% endif %}</td>
+      <td>{% if current_user.id == rec.teacher_id %}{{ rec.student.username }}{% else %}{{ rec.teacher.username }}{% endif %}</td>
+      <td>{{ rec.content }}</td>
+      <td>{{ rec.status }}</td>
+      <td>
+        <a href="{{ url_for('tutoring.feedback', record_id=rec.id) }}" class="btn btn-sm btn-outline-secondary">Give Feedback</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>You have no tutoring records.</p>
+{% endif %}
+{% endblock %}
