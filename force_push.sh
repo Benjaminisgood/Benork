@@ -1,41 +1,61 @@
 #!/bin/bash
 
-# ⚠️ 请先确认以下信息是否正确
-REMOTE_URL="https://github.com/Benjaminisgood/Benork.git"
+# ========== 基本设置 ==========
+DEFAULT_REMOTE="https://github.com/Benjaminisgood/Benork.git"
 BRANCH_NAME="main"
 COMMIT_MSG="💥 Force push to override remote repository"
 
-echo "🚀 开始执行 Git 强制覆盖推送流程..."
+# ========== GUI 弹窗函数 ==========
+confirm_push() {
+  osascript <<EOF
+tell application "System Events"
+    activate
+    set response to display dialog "是否将本地代码覆盖远程仓库？\n\n仓库地址：$1" buttons {"取消", "继续"} default button "继续" with icon caution
+    if button returned of response is "继续" then
+        return "yes"
+    else
+        return "no"
+    end if
+end tell
+EOF
+}
 
-# 步骤 1：初始化 git 仓库
-echo "📦 初始化 Git 仓库..."
-git init
+# ========== 检查 .git ==========
+if [ -d .git ]; then
+  echo "✅ 当前目录已是 Git 仓库"
+  CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null)
+  if [ -z "$CURRENT_REMOTE" ]; then
+    echo "⚠️ 未设置远程仓库，将使用默认地址：$DEFAULT_REMOTE"
+    git remote add origin "$DEFAULT_REMOTE"
+    CURRENT_REMOTE=$DEFAULT_REMOTE
+  else
+    echo "🌐 当前远程仓库为：$CURRENT_REMOTE"
+  fi
+else
+  echo "🚧 当前目录不是 Git 仓库，正在初始化..."
+  git init
+  git remote add origin "$DEFAULT_REMOTE"
+  CURRENT_REMOTE=$DEFAULT_REMOTE
+fi
 
-# 步骤 2：设置远程仓库
-echo "🔗 设置远程地址为：$REMOTE_URL"
-git remote add origin "$REMOTE_URL"
+# ========== 弹出确认对话框 ==========
+response=$(confirm_push "$CURRENT_REMOTE")
 
-# 步骤 3：切换到主分支
-echo "🌿 切换或创建分支：$BRANCH_NAME"
-git checkout -b "$BRANCH_NAME"
+if [ "$response" == "yes" ]; then
+  echo "📦 开始强制覆盖推送..."
 
-# 步骤 4：添加全部文件
-echo "📁 添加全部文件到 Git..."
-git add .
+  git checkout -B "$BRANCH_NAME"        # 强制创建并切换分支
+  git add .
+  git commit -m "$COMMIT_MSG"
 
-# 步骤 5：提交更改
-echo "✏️ 提交更改：$COMMIT_MSG"
-git commit -m "$COMMIT_MSG"
+  git push -f origin "$BRANCH_NAME"
+  echo "✅ 推送完成！"
+else
+  echo "❌ 用户取消操作。"
+fi
 
-# 步骤 6：强制推送到远程仓库
-echo "🚀 正在强制推送到远程仓库..."
-git push -f origin "$BRANCH_NAME"
-
-echo "✅ 完成！请到 GitHub 仓库查看是否成功同步。"
-
-# 可选：显示远程地址和日志
-echo "🌐 当前远程地址："
+# ========== 展示最终状态 ==========
+echo ""
 git remote -v
-
-echo "🕘 最近提交历史："
-git log --oneline -n 3
+echo ""
+git log --oneline -n 5
