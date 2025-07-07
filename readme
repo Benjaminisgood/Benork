@@ -1,4 +1,4 @@
-团队记账工具项目代码
+团队记账和管理工具项目代码
 
 下面是基于 Flask 的团队记账 Web 应用完整项目代码，包括项目结构、主要代码文件、模板，以及依赖安装和运行说明。
 
@@ -18,6 +18,9 @@ team_accounting/               # 项目根目录
 ├── admin/                     # 管理员功能模块
 │   ├── __init__.py            # 定义 admin Blueprint
 │   └── routes.py              # 审核、分类管理、统计导出路由
+├── tutoring/                     
+│   ├── __init__.py            
+│   └── routes.py
 ├── templates/                 # 前端模板
 │   ├── base.html              # 基础页面框架模板
 │   ├── auth/                  # auth 模块相关模板
@@ -27,9 +30,15 @@ team_accounting/               # 项目根目录
 │   │   ├── submit.html        # 提交报销申请页面
 │   │   └── my_requests.html   # “我的申请”页面
 │   └── admin/                 # admin 模块相关模板
-│       ├── pending.html       # 待审核列表页面
-│       ├── tags.html          # 分类及预算管理页面
-│       └── stats.html         # 财务统计页面
+│   │   ├── pending.html       # 待审核列表页面
+│   │   ├── tags.html          # 分类及预算管理页面
+│   │   └── stats.html         # 财务统计页面
+│   └── tutoring/                 
+│       ├── admin_pending.html       
+│       ├── all_records.html          
+│       ├── feedback.html
+│       ├── my_records.html          
+│       └── submit.html
 └── static/                    # 静态文件目录（保存图表等）
     └── ...                    # 例如生成的统计图表 stats.png
 
