@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 .env
 myenv/
+venv/
 instance/
 *.sqlite3
 *.db
