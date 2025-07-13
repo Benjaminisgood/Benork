@@ -1,4 +1,5 @@
 #!/bin/bash
+# ./force_push.sh
 
 # ========== 基本设置 ==========
 DEFAULT_REMOTE="https://github.com/Benjaminisgood/Benork.git"
@@ -34,6 +35,17 @@ else
   git init
   git remote add origin "$DEFAULT_REMOTE"
   CURRENT_REMOTE=$DEFAULT_REMOTE
+fi
+
+# ========== 网络连通性检查 ==========
+echo "🌐 正在检测 github.com 的网络连接..."
+ping -c 2 github.com > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "❌ 网络错误：无法连接到 github.com（可能被防火墙或墙阻断）"
+  echo "💡 请配置代理或检查网络后再执行。"
+  exit 1
+else
+  echo "✅ 网络正常，可以连接到 GitHub。"
 fi
 
 # ========== 弹出确认对话框 ==========
