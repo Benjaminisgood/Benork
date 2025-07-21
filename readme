@@ -164,3 +164,6 @@ benork.service
 ```bash
 systemctl list-units --type=service | grep .service
 ```
+
+
+未来为了保证代码的结构性和可拓展性，我将取消admin，将这部分代码融合至现在的main，然后将融合后的模块改名为money，未来如果有新的表单，则在现在money和tutoring的基础上再添加新的模块。
